@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rapport de dimensionnement solaire</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; line-height: 1.5; }
+    h1 { color: #2f6f4e; }
+    .card { border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .badge { background: #2f6f4e; color: white; padding: 4px 8px; border-radius: 4px; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <h1>Rapport de dimensionnement panneaux solaires</h1>
+  <div class="card">
+    <p><strong>Localisation :</strong> Paris (48.8566, 2.3522)</p>
+    <p><strong>Production souhaitée :</strong> 30.00 kWh/jour</p>
+    <p><strong>Surface disponible :</strong> 100.00 m²</p>
+  </div>
+
+  <div class="card">
+    <h2>Résultats principaux</h2>
+    <ul>
+      <li>Nombre de panneaux requis : <strong>50</strong></li>
+      <li>Surface totale requise : <strong>80.00 m²</strong></li>
+      <li>Energie estimée : <strong>30.00 kWh/jour</strong></li>
+      <li>Irradiance moyenne : <strong>4.00 kWh/m²/jour</strong></li>
+    </ul>
+    <p class="badge">OK: correspond à la surface disponible</p>
+  </div>
+
+  <div class="card">
+    <h2>Notes</h2>
+    <p>Hypothèses :</p>
+    <ul>
+      <li>Rendement panneau : 20%</li>
+      <li>Tilt optimal approximé à la latitude</li>
+      <li>Orientation sud (azimut 180°)</li>
+      <li>TMY PVGIS Paris</li>
+    </ul>
+  </div>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "solar-panel-sizing",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "node-fetch": "2.6.12"
+  }
+}
