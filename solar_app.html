@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solar Panel Sizing - NASA POWER</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+    .splash { position: fixed; inset: 0; z-index: 9999; background: white; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+    .splash-logo { width: 25vw; max-width: 300px; animation: splashZoom 1.2s ease-out forwards; }
+    .splash-text { margin-top: 14px; font-size: 1.6rem; color: #ff8c00; font-weight: 700; }
+    @keyframes splashZoom { 0% { transform: scale(0.1); opacity: 0; } 60% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+    .hidden-app { display: none; }
+    .logo { text-align: center; margin-bottom: 20px; }
+    .logo svg { width: 80px; height: 80px; }
+    h1 { color: #2f6f4e; text-align: left; }
+    label { display: block; margin: 10px 0 4px; font-weight: bold; }
+    label:has(input[type="checkbox"]) { display: inline-flex; align-items: center; gap: 10px; font-weight: bold; margin: 10px 0 4px; }
+    label:has(input[type="checkbox"]) input[type="checkbox"] { width: auto; max-width: none; margin: 0; }
+    input, button { font-size: 1rem; padding: 10px; width: 100%; max-width: 360px; border: 1px solid #ccc; border-radius: 4px; }
+    #city { max-width: 100%; }
+    button { cursor: pointer; background-color: #2f6f4e; color: white; border: none; margin-top: 12px; width: auto; }
+    button:hover { background-color: #1e4d38; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-top: 16px; max-width: 700px; background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .bar-chart, .monthly-graph-wrapper { display: flex; align-items: flex-end; justify-content: space-between; gap: 4px; margin-top: 12px; }
+    .month-bar { display: flex; flex-direction: column; align-items: center; width: calc(100% / 12 - 4px); }
+    .month-bar .bar { width: 100%; background-color: #2f6f4e; transition: height .3s ease; border-radius: 4px 4px 0 0; }
+    .month-label { margin-top: 6px; font-size: 0.75rem; color: #333; }
+    .value-label { font-size: 0.7rem; color: #555; margin-top: 2px; }
+    .ok { color: green; font-weight: bold; }
+    .error { color: red; font-weight: bold; }
+    ul { list-style-type: none; padding-left: 0; }
+    ul li { padding: 8px 0; border-bottom: 1px solid #eee; }
+    ul li:last-child { border-bottom: none; }
+    .logo { text-align: center; margin-bottom: 20px; }
+    .logo svg { width: 80px; height: 80px; }
+    .logo-text { font-size: 1.5rem; color: #2f6f4e; font-weight: bold; margin-top: 10px; }
+    #status { margin-top: 12px; font-size: 1.1rem; }
+
+    /* Mode sombre */
+    @media (prefers-color-scheme: dark) {
+      body { background-color: #1a1a1a; color: #e0e0e0; }
+      .card { background-color: #2d2d2d; border-color: #444; }
+      input, button, select { background-color: #333; color: #e0e0e0; border-color: #555; }
+      .bar-chart, .monthly-graph-wrapper { background-color: #2d2d2d; }
+    }
+
+    /* Animations et transitions */
+    .card { transition: all 0.3s ease; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+
+    /* Indicateur de chargement */
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #2f6f4e;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Tooltips */
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      cursor: help;
+    }
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 200px;
+      background-color: #555;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -100px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 12px;
+    }
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="splash" id="splashScreen">
+    <img src="solar_logo.png.png" alt="SolarSizer logo" class="splash-logo" />
+  </div>
+
+  <div id="appContent" class="hidden-app">
+    <div class="logo" style="display: flex; align-items: center; gap: 14px; margin: 0 0 16px 0;">
+      <img src="solar_logo.png.png" alt="SolarSizer logo" style="width: 160px; height: auto; object-fit: contain;" />
+    </div>
+    <h1>☀️ Dimensionnement de panneaux solaires</h1>
+    <p style="font-size: 1.1rem; color: #555; margin: 10px 0 20px 0; max-width: 800px;">
+      Calculez précisément vos besoins en panneaux solaires avec notre outil alimenté par les données satellitaires NASA POWER.
+      Obtenez un dimensionnement optimal incluant la production énergétique, la surface requise et les trajectoires solaires.
+    </p>
+  <p>Basé sur les données d'irradiance NASA POWER (LARC) - ALLSKY_SFC_SW_DWN</p>
+
+  <div class="row" style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; align-items: flex-start;">
+    <div class="card" style="flex: 1 1 450px; min-width: 330px; max-width: 540px;">
+    <h2>Paramètres du projet</h2>
+    <label for="city">Ville (ex : Paris, France) <span class="tooltip">💡<span class="tooltiptext">Saisissez une ville ou des coordonnées GPS (lat,lng)</span></span></label>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <input type="text" id="city" value="Paris" style="flex: 1;" />
+      <button id="geolocateBtn" style="padding: 10px 15px; background-color: #4a90e2; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">📍 Ma position</button>
+    </div>
+
+    <label for="energy">Énergie quotidienne souhaitée (kWh/jour) <span class="tooltip">💡<span class="tooltiptext">Consommation électrique journalière moyenne</span></span></label>
+    <input type="number" id="energy" value="30" min="1" step="0.5" />
+
+    <label for="area">Surface disponible (m²), vide = illimitée <span class="tooltip">💡<span class="tooltiptext">Laissez vide pour dimensionnement automatique</span></span></label>
+    <input type="number" id="area" value="100" min="0" step="1" />
+
+    <label for="panelModel">Modèle de panneau photovoltaïque <span class="tooltip">💡<span class="tooltiptext">Choisissez un modèle commercial ou créez un panneau personnalisé</span></span></label>
+    <select id="panelModel" style="width: 100%; max-width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem;">
+      <option value="standard">Modèle standard (1.6m², 400W, 20%)</option>
+      <option value="sunpower">SunPower 420W (1.68m², 420W, 22.8%)</option>
+      <option value="lg">LG 410W (1.65m², 410W, 22.2%)</option>
+      <option value="viessmann">Viessmann Vitovolt 300 400W (1.6m², 400W, 21.8%)</option>
+      <option value="rec">REC Alpha 400W (1.65m², 400W, 22%)</option>
+      <option value="jinko">Jinko Tiger 450W (2.08m², 450W, 22%)</option>
+      <option value="canadian">Canadian Solar 405W (1.96m², 405W, 20.6%)</option>
+      <option value="trina">Trina Solar 425W (2.06m², 425W, 20.6%)</option>
+      <option value="jinko100">Jinko 100W (0.76m², 100W, 18.5%)</option>
+      <option value="renogy100">Renogy 100W (0.95m², 100W, 17.4%)</option>
+      <option value="canadian150">Canadian Solar 150W (1.3m², 150W, 18.5%)</option>
+      <option value="custom">Panneau personnalisé</option>
+    </select>
+    <div id="panelInfo" style="margin-top: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px; font-size: 0.9rem; display:none;"></div>
+
+    <div id="customPanel" style="display: none; margin-top: 10px; padding: 10px; background-color: #f0f8f5; border-radius: 4px;">
+      <label for="customPower">Puissance (W)</label>
+      <input type="number" id="customPower" value="400" min="1" step="1" />
+
+      <label for="customArea">Surface (m²)</label>
+      <input type="number" id="customArea" value="1.6" min="0.1" step="0.01" />
+
+      <label for="customEfficiency">Rendement (%)</label>
+      <input type="number" id="customEfficiency" value="20" min="1" max="30" step="0.1" />
+    </div>
+
+    <label><span>Dimensionnement batterie</span> <input type="checkbox" id="batteryEnabled" /></label>
+    <label for="batteryAutonomy">Autonomie souhaitée (jours)</label>
+    <input type="number" id="batteryAutonomy" value="1" min="0" step="0.5" />
+
+    <label for="batteryCapacityAh">Capacité unitaire de la batterie (Ah)</label>
+    <input type="number" id="batteryCapacityAh" value="100" min="0" step="1" />
+
+    <label for="batteryVoltage">Tension batterie (V)</label>
+    <input type="number" id="batteryVoltage" value="12" min="1" step="1" />
+
+    <label for="batteryDOD">Profondeur de décharge acceptable (%)</label>
+    <input type="number" id="batteryDOD" value="80" min="1" max="100" step="1" />
+
+    <label><span>Présence d'ombrage</span> <input type="checkbox" id="shadeEnabled" /></label>
+    <div id="shadeFields" style="display: none; margin-top: 10px; padding: 10px; background-color: #fff7f0; border-radius: 4px;">
+      <label for="shadeDuration">Durée d'ombrage quotidienne (heures)</label>
+      <input type="number" id="shadeDuration" value="0" min="0" step="0.1" />
+
+      <label for="shadeAngle">Angle d'ombrage (° au-dessus de l'horizon)</label>
+      <input type="number" id="shadeAngle" value="0" min="0" max="90" step="0.1" />
+      <label style="margin-top:8px; font-weight:normal; font-size:0.9rem;">Mode essai saisonnier
+        <input type="checkbox" id="seasonalMode" style="margin-left:8px;" />
+      </label>
+      <div style="font-size:0.85rem; color:#555; margin-top:6px;">Si activé : moyenne sur plusieurs jours représentatifs (par défaut : un jour par mois).</div>
+    </div>
+
+    <button id="computeBtn">🔍 Calculer</button>
+    <button id="downloadBtn" style="display:none; margin-left: 12px;">📥 Télécharger rapport</button>
+    <button id="exportBtn" style="display:none; margin-left: 12px;">💾 Exporter config</button>
+    <p id="status"></p>
+  </div>
+
+    <div style="display: flex; flex-direction: column; gap: 20px; flex: 1 1 560px; min-width: 360px; max-width: 640px;">
+      <div class="card" id="chartCard" style="display:none; min-height: 320px;">
+        <h2>📈 Production mensuelle</h2>
+        <div id="monthlyChart" class="monthly-graph-wrapper"></div>
+      </div>
+
+      <div class="card" id="sunlightCard" style="display:none; min-height: 320px;">
+        <h2>☀️ Heures de soleil mensuelles</h2>
+        <div id="sunlightChart" class="monthly-graph-wrapper"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-container" style="display: flex; gap: 20px; flex-wrap: wrap;">
+    <div class="card" id="resultCard" style="display:none; flex: 1; min-width: 300px;">
+      <h2>Résultats du dimensionnement</h2>
+      <p id="locationInfo"></p>
+      <p id="weatherInfo"></p>
+      <h3>Métriques calculées :</h3>
+      <ul id="computedMetrics"></ul>
+    </div>
+
+    <div class="card" id="solarPathCard" style="display:none; flex: 1; min-width: 300px;">
+      <h2>🌅 Trajectoire solaire annuelle</h2>
+      <div id="solarPathChart" style="display: flex; justify-content: center; align-items: center; padding: 10px 0;"></div>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+        <label for="sunHourRange" style="font-size:0.9rem; margin:0;">Heure solaire :</label>
+        <input id="sunHourRange" type="range" min="6" max="18" step="0.5" value="12" style="width:180px;" />
+        <span id="sunHourValue" style="font-weight:700;">12h</span>
+      </div>
+      <div style="font-size: 0.8rem; color: #666; margin-top: 10px; text-align: center;">
+        <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-bottom: 5px;">
+          <span style="color: #4a90e2;">● Hiver</span>
+          <span style="color: #f5a623;">● Été</span>
+          <span style="color: #d0021b;">● Automne</span>
+        </div>
+        <p style="margin: 0; font-size: 0.75rem;">Trajectoires du soleil de 6h à 18h (point = midi solaire)</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="methodCard" style="display:none;">
+    <h3>📊 Méthode de calcul</h3>
+    <ul>
+      <li><strong>Source météo :</strong> NASA POWER (LARC), paramètre ALLSKY_SFC_SW_DWN</li>
+      <li><strong>GHI :</strong> Moyenne annuelle en kWh/m²/jour</li>
+      <li><strong>DNI :</strong> Approximation ≈ 60% de GHI</li>
+      <li><strong>DHI :</strong> Approximation ≈ 40% de GHI</li>
+      <li><strong>POA (Plane of Array) :</strong> GHI × 0.9 (inclinaison optimale)</li>
+      <li><strong>Énergie/panneau :</strong> POA × 0.20 (rendement 20%)</li>
+      <li><strong>Nombre panneaux :</strong> Objectif kWh ÷ Énergie/panneau</li>
+      <li><strong>Taille panneau standard :</strong> 1.6 m² (1m × 1.6m)</li>
+      <li><strong>Dimensionnement batterie :</strong> Capacité utile = (Énergie journalière × Autonomie × 1.11) ÷ DOD</li>
+      <li><strong>Capacité unitaire batterie :</strong> Ah × V ÷ 1000 = kWh</li>
+      <li><strong>Nombre batteries :</strong> Capacité utile ÷ Capacité unitaire</li>
+      <li><strong>Efficacité batterie :</strong> 90% (pertes de charge/décharge)</li>
+      <li><strong>DOD (Depth of Discharge) :</strong> Profondeur de décharge acceptable (20-95% recommandé)</li>
+    </ul>
+  </div>
+
+  <script>
+    const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // Base de données des panneaux photovoltaïques commercialisés en France
+    const panelDatabase = {
+      standard: {
+        name: 'Modèle standard',
+        power: 400,
+        area: 1.6,
+        efficiency: 20,
+        price: 180,
+        description: 'Panneau monocristallin standard'
+      },
+      sunpower: {
+        name: 'SunPower 420W',
+        power: 420,
+        area: 1.68,
+        efficiency: 22.8,
+        price: 280,
+        description: 'Technologie haute performance, rendement maximal'
+      },
+      lg: {
+        name: 'LG 410W',
+        power: 410,
+        area: 1.65,
+        efficiency: 22.2,
+        price: 260,
+        description: 'Panneau LG Neon, très fiable et performant'
+      },
+      viessmann: {
+        name: 'Viessmann Vitovolt 300 400W',
+        power: 400,
+        area: 1.6,
+        efficiency: 21.8,
+        price: 240,
+        description: 'Marque allemande, garantie étendue'
+      },
+      rec: {
+        name: 'REC Alpha 400W',
+        power: 400,
+        area: 1.65,
+        efficiency: 22,
+        price: 250,
+        description: 'REC, technologie Half-Cut, rendement excellent'
+      },
+      jinko: {
+        name: 'Jinko Tiger 450W',
+        power: 450,
+        area: 2.08,
+        efficiency: 22,
+        price: 270,
+        description: 'Haute puissance, bon rapport qualité-prix'
+      },
+      canadian: {
+        name: 'Canadian Solar 405W',
+        power: 405,
+        area: 1.96,
+        efficiency: 20.6,
+        price: 200,
+        description: 'Marque réputée, bon compromis prix/performance'
+      },
+      trina: {
+        name: 'Trina Solar 425W',
+        power: 425,
+        area: 2.06,
+        efficiency: 20.6,
+        price: 220,
+        description: 'Grande efficacité énergétique, prix compétitif'
+      },
+      jinko100: {
+        name: 'Jinko 100W',
+        power: 100,
+        area: 0.76,
+        efficiency: 18.5,
+        price: 60,
+        description: 'Petit panneau pour petite installation, usage nomade / camping.'
+      },
+      renogy100: {
+        name: 'Renogy 100W',
+        power: 100,
+        area: 0.95,
+        efficiency: 17.4,
+        price: 75,
+        description: 'Panneau solaire monocristallin portable 100W.'
+      },
+      canadian150: {
+        name: 'Canadian Solar 150W',
+        power: 150,
+        area: 1.3,
+        efficiency: 18.5,
+        price: 110,
+        description: 'Solution intermédiaire pour projets légers.'
+      },
+      custom: {
+        name: 'Panneau personnalisé',
+        power: 400,
+        area: 1.6,
+        efficiency: 20,
+        price: 0,
+        description: 'Définissez vos propres paramètres'
+      }
+    };
+    function updatePanelInfo() {
+      const modelId = document.getElementById('panelModel').value;
+      const customPanelDiv = document.getElementById('customPanel');
+
+      if (modelId === 'custom') {
+        customPanelDiv.style.display = 'block';
+        document.getElementById('panelInfo').style.display = 'none';
+      } else {
+        customPanelDiv.style.display = 'none';
+        const panel = panelDatabase[modelId];
+        const infoDiv = document.getElementById('panelInfo');
+
+        infoDiv.innerHTML = `
+          <strong>${panel.name}</strong><br>
+          📊 Puissance: ${panel.power}W | Surface: ${panel.area}m² | Rendement: ${panel.efficiency}% | Prix: ~€${panel.price}<br>
+          <small>${panel.description}</small>
+        `;
+        infoDiv.style.display = 'block';
+      }
+    }
+
+    document.getElementById('panelModel').addEventListener('change', updatePanelInfo);
+
+    // Géolocalisation automatique
+    document.getElementById('geolocateBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('geolocateBtn');
+      const originalText = btn.textContent;
+      btn.textContent = '📍 Localisation...';
+      btn.disabled = true;
+
+      try {
+        if (!navigator.geolocation) {
+          throw new Error('Géolocalisation non supportée par ce navigateur');
+        }
+
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000
+          });
+        });
+
+        const { latitude, longitude } = position.coords;
+        document.getElementById('city').value = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        setStatus('📍 Position GPS détectée avec succès', 'ok');
+      } catch (error) {
+        console.error('Erreur de géolocalisation:', error);
+        setStatus('❌ Impossible d\'obtenir votre position. Vérifiez les permissions GPS.', 'error');
+      } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    });
+
+    // Validation temps réel des champs numériques
+    const validateNumericInput = (inputId, min = 0, max = null) => {
+      const input = document.getElementById(inputId);
+      input.addEventListener('input', () => {
+        const value = Number(input.value);
+        if (isNaN(value) || value < min || (max !== null && value > max)) {
+          input.style.borderColor = '#e74c3c';
+          input.style.backgroundColor = '#fdf2f2';
+        } else {
+          input.style.borderColor = '#ccc';
+          input.style.backgroundColor = '';
+        }
+      });
+    };
+
+    // Appliquer la validation aux champs numériques
+    validateNumericInput('energy', 1);
+    validateNumericInput('area', 0);
+    validateNumericInput('customPower', 1);
+    validateNumericInput('customArea', 0.1);
+    validateNumericInput('customEfficiency', 1, 30);
+    validateNumericInput('batteryAutonomy', 0);
+    validateNumericInput('batteryCapacityAh', 0);
+    validateNumericInput('batteryVoltage', 1);
+    validateNumericInput('batteryDOD', 1, 100);
+    validateNumericInput('shadeDuration', 0);
+    validateNumericInput('shadeAngle', 0, 90);
+
+    // Afficher/masquer les champs d'ombrage
+    const shadeCheckbox = document.getElementById('shadeEnabled');
+    if (shadeCheckbox) {
+      shadeCheckbox.addEventListener('change', (e) => {
+        const show = e.target.checked;
+        const f = document.getElementById('shadeFields');
+        if (f) f.style.display = show ? 'block' : 'none';
+      });
+    }
+
+    // Basculer le mode saisonnier n'affecte que le calcul d'ombrage
+    const seasonalCheckbox = document.getElementById('seasonalMode');
+    if (seasonalCheckbox) {
+      seasonalCheckbox.addEventListener('change', () => {
+        // pas d'action UI autre que la checkbox pour l'instant
+      });
+    }
+
+    const fetchWithRetry = async (url, options = {}, retries = 3, backoff = 1000) => {
+      for (let i = 0; i <= retries; i++) {
+        try {
+          const response = await fetch(url, options);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response;
+        } catch (error) {
+          if (i === retries) throw error;
+          await wait(backoff * (i + 1));
+        }
+      }
+    };
+
+    const getCoordinates = async (city) => {
+      if (!city) throw new Error('Merci de saisir une ville');
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`;
+      const resp = await fetchWithRetry(url, {headers:{'User-Agent':'solar-app-browser'}}, 3, 1000);
+      const arr = await resp.json();
+      if (arr.length===0) throw new Error('Ville introuvable');
+      return {lat: parseFloat(arr[0].lat), lon: parseFloat(arr[0].lon), display_name: arr[0].display_name};
+    };
+
+    const getSolarData = async (lat, lon) => {
+      const cacheKey = `solar_${lat.toFixed(3)}_${lon.toFixed(3)}`;
+      const cached = localStorage.getItem(cacheKey);
+
+      if (cached) {
+        const cacheData = JSON.parse(cached);
+        // Cache valide pendant 30 jours
+        if (Date.now() - cacheData.timestamp < 30 * 24 * 60 * 60 * 1000) {
+          return cacheData.data;
+        }
+      }
+
+      const url = `https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=ALLSKY_SFC_SW_DWN&community=RE&longitude=${lon}&latitude=${lat}&format=JSON`;
+      const resp = await fetchWithRetry(url, {}, 3, 1000);
+      const json = await resp.json();
+
+      if (!json.properties || !json.properties.parameter || !json.properties.parameter.ALLSKY_SFC_SW_DWN) {
+        throw new Error('Aucune donnée NASA POWER disponible pour cette localisation');
+      }
+
+      const monthly = json.properties.parameter.ALLSKY_SFC_SW_DWN;
+      const values = Object.values(monthly).map(Number);
+      const data = { values, monthly };
+
+      // Mettre en cache
+      localStorage.setItem(cacheKey, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+
+      return data;
+    };
+
+
+    const setStatus = (message, klass = '', loading = false) => {
+      const status = document.getElementById('status');
+      const spinner = loading ? '<span class="loading-spinner"></span>' : '';
+      status.innerHTML = spinner + message;
+      status.className = klass;
+    };
+
+    const getStudyLocation = async () => {
+      const cityValue = document.getElementById('city').value.trim();
+      if (/^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(cityValue)) {
+        const [lat, lon] = cityValue.split(',').map(Number);
+        return { lat, lon, display_name: `${lat.toFixed(5)}, ${lon.toFixed(5)}` };
+      }
+      return await getCoordinates(cityValue);
+    };
+
+    const compute = (tmy, desiredEnergy, areaM2, panelPower = 400, panelArea = 1.6, panelName = '', batteryEnabled = false, batteryAutonomyDays = 0, batteryCapacityAh = 100, batteryVoltage = 12, batteryDOD = 80) => {
+      const values = tmy.values || tmy.monthlyValues;
+      const avg_ghi = values.reduce((a, b) => a + b, 0) / values.length;
+      const avg_dni = avg_ghi * 0.6;
+      const avg_dhi = avg_ghi * 0.4;
+      const average_poa = avg_ghi * 0.9;
+      // Énergie produite par panneau par jour = POA × rendement du panneau
+      const energy_per_panel = average_poa * (panelPower / 1000) / 1; // kWh/jour
+      if (energy_per_panel <= 0) throw new Error('Énergie par panneau invalide');
+
+      let numPanels = desiredEnergy / energy_per_panel;
+      let totalArea = numPanels * panelArea;
+      let produced = desiredEnergy;
+      let note = '';
+      if (areaM2 > 0 && totalArea > areaM2) {
+        numPanels = areaM2 / panelArea;
+        totalArea = areaM2;
+        produced = numPanels * energy_per_panel;
+        note = 'Limité par la surface disponible';
+      }
+
+      let battery_kwh_required = 0;
+      let battery_units_required = 0;
+      const battery_unit_capacity = (batteryCapacityAh * batteryVoltage) / 1000; // kWh / unité
+      const dodFactor = Math.max(0.01, Math.min(1, batteryDOD / 100));
+      if (batteryEnabled && batteryAutonomyDays > 0) {
+        const battery_efficiency = 0.9;
+        const needed_kwh = (desiredEnergy * batteryAutonomyDays) / battery_efficiency;
+        battery_kwh_required = needed_kwh / dodFactor;
+        if (battery_unit_capacity <= 0) throw new Error('Capacité batterie invalide');
+        battery_units_required = Math.ceil(battery_kwh_required / battery_unit_capacity);
+      }
+
+      return {
+        numPanels: Math.ceil(numPanels),
+        totalArea: totalArea.toFixed(2),
+        estimatedEnergy: produced.toFixed(2),
+        energyPerPanel: energy_per_panel.toFixed(2),
+        panelName: panelName,
+        panelPower: panelPower,
+        averagePoa: average_poa.toFixed(2),
+        avg_ghi: avg_ghi.toFixed(2),
+        avg_dni: avg_dni.toFixed(2),
+        avg_dhi: avg_dhi.toFixed(2),
+        note,
+        batteryEnabled,
+        batteryAutonomyDays,
+        batteryDOD,
+        battery_kwh_required: battery_kwh_required.toFixed(2),
+        battery_units_required,
+        battery_unit_capacity: battery_unit_capacity.toFixed(2),
+        batteryCapacityAh,
+        batteryVoltage,
+        battery_usable_kwh: (battery_kwh_required * dodFactor).toFixed(2)
+      };
+    };
+
+    const monthLabels = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+    const renderMonthlyChart = (monthlyObject) => {
+      if (!monthlyObject) return;
+      const container = document.getElementById('monthlyChart');
+      const values = monthLabels.map(month => Number(monthlyObject[month] || 0));
+      const maxValue = Math.max(...values, 1);
+      container.innerHTML = values.map((value, idx) => {
+        const height = Math.round((value / maxValue) * 160);
+        return `
+          <div class="month-bar">
+            <div class="bar" style="height: ${height}px;" title="${monthLabels[idx]}: ${value.toFixed(2)}"></div>
+            <div class="month-label">${monthLabels[idx]}</div>
+            <div class="value-label">${value.toFixed(2)}</div>
+          </div>`;
+      }).join('');
+      document.getElementById('chartCard').style.display = 'block';
+    };
+
+    const renderSunlightChart = (daylightHours) => {
+      const container = document.getElementById('sunlightChart');
+      const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+      const maxHours = Math.max(...daylightHours);
+
+      container.innerHTML = daylightHours.map((hours, idx) => {
+        const height = Math.round((hours / maxHours) * 160);
+        return `
+          <div class="month-bar">
+            <div class="bar" style="height: ${height}px; background-color: #ffd700;" title="${months[idx]}: ${hours.toFixed(1)}h"></div>
+            <div class="month-label">${months[idx]}</div>
+            <div class="value-label">${hours.toFixed(1)}h</div>
+          </div>`;
+      }).join('');
+      document.getElementById('sunlightCard').style.display = 'block';
+    };
+
+    const buildMonthlyChartHtml = (monthlyObject) => {
+      const values = monthLabels.map(month => Number(monthlyObject[month] || 0));
+      const maxValue = Math.max(...values, 1);
+      return `
+        <h2>📈 Production mensuelle (kWh/m²/jour)</h2>
+        <div style="display:flex;align-items:flex-end;gap:4px;">${values.map((value, idx) => {
+          const height = Math.round((value / maxValue) * 160);
+          return `
+            <div style="display:flex;flex-direction:column;align-items:center;width:calc(100%/12 - 4px);">
+              <div style="width:100%;height:${height}px;background:#2f6f4e;border-radius:4px 4px 0 0;"></div>
+              <div style="margin-top:6px;font-size:0.75rem;color:#333;">${monthLabels[idx]}</div>
+              <div style="font-size:0.7rem;color:#555;">${value.toFixed(2)}</div>
+            </div>`;
+        }).join('')}</div>`;
+    };
+
+    const calculateSolarTrajectory = (latitude) => {
+      const latRad = latitude * Math.PI / 180;
+      const obliquity = 23.44 * Math.PI / 180; // Inclinaison de l'axe terrestre
+
+      // Calcul des heures de jour pour chaque mois
+      const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+      const daylightHours = [];
+      let maxDaylight = 0, minDaylight = 24, maxDayIdx = 0, minDayIdx = 0;
+
+      for (let month = 0; month < 12; month++) {
+        // Jour représentatif du mois (15e jour)
+        const dayOfYear = month * 30.44 + 15;
+        const declination = obliquity * Math.sin(2 * Math.PI * (284 + dayOfYear) / 365.25);
+
+        // Formule des heures de jour
+        const hourAngle = Math.acos(-Math.tan(latRad) * Math.tan(declination));
+        const daylight = (24 / Math.PI) * hourAngle;
+
+        daylightHours.push(daylight);
+
+        if (daylight > maxDaylight) {
+          maxDaylight = daylight;
+          maxDayIdx = month;
+        }
+        if (daylight < minDaylight) {
+          minDaylight = daylight;
+          minDayIdx = month;
+        }
+      }
+
+      // Élévation maximale du soleil (à midi au solstice d'été)
+      const summerSolsticeDeclination = obliquity;
+      const maxElevation = 90 - latitude + (summerSolsticeDeclination * 180 / Math.PI);
+
+      return {
+        daylightHours,
+        maxDaylightHours: maxDaylight,
+        minDaylightHours: minDaylight,
+        longestDay: months[maxDayIdx],
+        shortestDay: months[minDayIdx],
+        maxElevation: Math.max(0, Math.min(90, maxElevation))
+      };
+    };
+
+    const calculateSolarPath = (latitude) => {
+      const latRad = latitude * Math.PI / 180;
+      const obliquity = 23.44 * Math.PI / 180;
+
+      // Calculer les trajectoires pour 3 périodes clés de l'année
+      const periods = [
+        { name: 'Hiver (Déc)', dayOfYear: 355, color: '#4a90e2' },
+        { name: 'Été (Jun)', dayOfYear: 172, color: '#f5a623' },
+        { name: 'Automne (Sep)', dayOfYear: 266, color: '#d0021b' }
+      ];
+
+      const paths = periods.map(period => {
+        const declination = obliquity * Math.sin(2 * Math.PI * (284 + period.dayOfYear) / 365.25);
+        const points = [];
+
+        // Calculer la position du soleil toutes les heures de 6h à 18h
+        for (let hour = 6; hour <= 18; hour += 0.5) {
+          const hourAngle = (hour - 12) * 15 * Math.PI / 180; // 15° par heure
+
+          // Élévation solaire
+          const elevation = Math.asin(
+            Math.sin(latRad) * Math.sin(declination) +
+            Math.cos(latRad) * Math.cos(declination) * Math.cos(hourAngle)
+          ) * 180 / Math.PI;
+
+          // Azimut solaire
+          const azimuth = Math.atan2(
+            Math.sin(hourAngle),
+            Math.cos(hourAngle) * Math.sin(latRad) - Math.tan(declination) * Math.cos(latRad)
+          ) * 180 / Math.PI;
+
+          if (elevation > 0) { // Seulement quand le soleil est au-dessus de l'horizon
+            points.push({ hour, elevation, azimuth });
+          }
+        }
+
+        return { ...period, points };
+      });
+
+      return paths;
+    };
+
+    let currentSolarPathData = null;
+
+    const updateSunHourMarkers = (hour) => {
+      const container = document.getElementById('solarPathChart');
+      const svg = container.querySelector('svg');
+      if (!svg || !currentSolarPathData) return;
+
+      const markerGroup = svg.querySelector('#hourMarkers') || document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      markerGroup.setAttribute('id', 'hourMarkers');
+      markerGroup.innerHTML = '';
+      currentSolarPathData.paths.forEach(path => {
+        if (path.points.length === 0) return;
+        const nearest = path.points.reduce((prev, curr) => Math.abs(curr.hour - hour) < Math.abs(prev.hour - hour) ? curr : prev);
+        const x = currentSolarPathData.xScale(nearest.hour);
+        const y = currentSolarPathData.yScale(nearest.elevation);
+
+        markerGroup.innerHTML += `
+          <circle cx="${x}" cy="${y}" r="4" fill="${path.color}" stroke="#333" stroke-width="1.2" />
+          <text x="${x + 6}" y="${y - 6}" font-size="11" fill="${path.color}" font-weight="700">${path.name.replace(' (Déc)','').replace(' (Mar)','').replace(' (Jun)','').replace(' (Sep)','')} ${nearest.hour.toFixed(1)}h</text>
+        `;
+      });
+
+      svg.appendChild(markerGroup);
+    };
+
+    const renderSolarPathChart = (latitude) => {
+      const paths = calculateSolarPath(latitude);
+      const container = document.getElementById('solarPathChart');
+
+      const width = 780;
+      const height = 360;
+      const padding = 60;
+      const chartWidth = width - 2 * padding;
+      const chartHeight = height - 2 * padding;
+
+      const xScale = (hour) => padding + ((hour - 6) / 12) * chartWidth;
+      const yScale = (el) => height - padding - (el / 90) * chartHeight;
+
+      currentSolarPathData = { paths, xScale, yScale };
+
+      let svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="display:block;margin:0 auto;font-family:Arial, sans-serif;">`;
+
+      svg += `<rect x="${padding}" y="${padding}" width="${chartWidth}" height="${chartHeight}" fill="#fff" stroke="#ddd" stroke-width="1"/>`;
+
+      for (let h = 6; h <= 18; h += 1) {
+        const x = xScale(h);
+        svg += `<line x1="${x}" y1="${padding}" x2="${x}" y2="${height - padding}" stroke="#f0f0f0" stroke-width="1"/>`;
+        svg += `<text x="${x}" y="${height - 26}" font-size="12" fill="#666" text-anchor="middle">${h}h</text>`;
+      }
+
+      for (let e = 0; e <= 90; e += 15) {
+        const y = yScale(e);
+        svg += `<line x1="${padding}" y1="${y}" x2="${width - padding}" y2="${y}" stroke="#f0f0f0" stroke-width="1"/>`;
+        svg += `<text x="${padding - 12}" y="${y + 4}" font-size="12" fill="#666" text-anchor="end">${e}°</text>`;
+      }
+
+      svg += `<line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#666" stroke-width="2"/>`;
+      svg += `<line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#666" stroke-width="2"/>`;
+
+      const summer = paths.find(p => p.name.includes('Été'))?.points || [];
+      const winter = paths.find(p => p.name.includes('Hiver'))?.points || [];
+      if (summer.length > 1 && winter.length > 1) {
+        let activePath = '';
+        summer.forEach((p, i) => {
+          const x = xScale(p.hour);
+          const y = yScale(p.elevation);
+          activePath += `${i === 0 ? 'M' : 'L'} ${x} ${y} `;
+        });
+        const reversed = [...winter].reverse();
+        reversed.forEach((p) => {
+          const x = xScale(p.hour);
+          const y = yScale(p.elevation);
+          activePath += `L ${x} ${y} `;
+        });
+        svg += `<path d="${activePath}Z" fill="#ffeaa7" opacity="0.45"/>`;
+      }
+
+      paths.forEach(path => {
+        if (path.points.length < 2) return;
+
+        let line = '';
+        path.points.forEach((p) => {
+          const x = xScale(p.hour);
+          const y = yScale(p.elevation);
+          line += `${line === '' ? 'M' : 'L'} ${x} ${y} `;
+        });
+
+        const dash = path.name.includes('Équinoxe') ? 'stroke-dasharray="6,4"' : '';
+        svg += `<path d="${line}" fill="none" stroke="${path.color}" stroke-width="2.5" ${dash} opacity="0.95"/>`;
+
+        path.points.filter(p => p.hour % 1 === 0).forEach((p, i) => {
+          const x = xScale(p.hour);
+          const y = yScale(p.elevation);
+          svg += `<circle cx="${x}" cy="${y}" r="2.3" fill="${path.color}" stroke="#fff" stroke-width="1"/>`;
+          if (i % 2 === 0) {
+            svg += `<text x="${x + 6}" y="${y - 4}" font-size="11" fill="${path.color}" font-weight="700">${p.hour.toFixed(0)}h</text>`;
+          }
+        });
+      });
+
+      const horizonLine = `M ${xScale(6)} ${yScale(0)} L ${xScale(18)} ${yScale(0)}`;
+      svg += `<path d="${horizonLine}" fill="none" stroke="#999" stroke-width="2"/>`;
+
+      const legend = [
+        { label: 'Hiver (déc)', color: '#4a90e2' },
+        { label: 'Été (juin)', color: '#f5a623' },
+        { label: 'Automne (sept)', color: '#d0021b' }
+      ];
+      legend.forEach((item, i) => {
+        const lx = padding + i * 180;
+        const ly = 25;
+        svg += `<line x1="${lx}" y1="${ly}" x2="${lx + 30}" y2="${ly}" stroke="${item.color}" stroke-width="3"/>`;
+        svg += `<text x="${lx + 35}" y="${ly + 5}" font-size="12" fill="#333">${item.label}</text>`;
+      });
+
+      svg += `<text x="${width / 2}" y="${15}" font-size="18" fill="#111" font-weight="700" text-anchor="middle">Horizon and sunpath (heure / élévation)</text>`;
+      svg += `<g id="hourMarkers"></g>`;
+
+      svg += `</svg>`;
+      container.innerHTML = svg;
+
+      document.getElementById('solarPathCard').style.display = 'block';
+      updateSunHourMarkers(Number(document.getElementById('sunHourRange').value));
+    };
+
+    const performCalculation = async () => {
+        const city = document.getElementById('city').value.trim();
+      const energy = Number(document.getElementById('energy').value);
+      const areaVal = document.getElementById('area').value;
+      const area = areaVal ? Number(areaVal) : 0;
+      const panelModelId = document.getElementById('panelModel').value;
+      let selectedPanel;
+      if (panelModelId === 'custom') {
+        const customPower = Number(document.getElementById('customPower').value);
+        const customArea = Number(document.getElementById('customArea').value);
+        const customEfficiency = Number(document.getElementById('customEfficiency').value);
+        selectedPanel = {
+          name: 'Panneau personnalisé',
+          power: customPower,
+          area: customArea,
+          efficiency: customEfficiency,
+          price: 0 // No price for custom
+        };
+      } else {
+        selectedPanel = panelDatabase[panelModelId];
+      }
+      const batteryEnabled = document.getElementById('batteryEnabled').checked;
+      const batteryAutonomyDays = Number(document.getElementById('batteryAutonomy').value) || 0;
+      const batteryCapacityAh = Number(document.getElementById('batteryCapacityAh').value) || 0;
+      const batteryVoltage = Number(document.getElementById('batteryVoltage').value) || 0;
+      const batteryDOD = Number(document.getElementById('batteryDOD').value) || 80;
+      const status = document.getElementById('status');
+
+      if (batteryEnabled && (batteryDOD < 20 || batteryDOD > 95)) {
+        setStatus(`⚠️ Profondeur de décharge (${batteryDOD}%) non recommandée : 20-95% conseillé.`, 'error');
+        return;
+      }
+
+      setStatus('Calcul en cours...', '', true);
+      try {
+        const loc = await getStudyLocation();
+        const tmy = await getSolarData(loc.lat, loc.lon);
+        const out = compute(tmy, energy, area, selectedPanel.power, selectedPanel.area, selectedPanel.name, batteryEnabled, batteryAutonomyDays, batteryCapacityAh, batteryVoltage, batteryDOD);
+
+        document.getElementById('locationInfo').textContent =
+          `📍 Localisation : ${loc.display_name} (Latitude ${loc.lat.toFixed(5)}°, Longitude ${loc.lon.toFixed(5)}°)`;
+
+        // Calcul de la trajectoire solaire annuelle
+        const solarTrajectory = calculateSolarTrajectory(loc.lat);
+        document.getElementById('weatherInfo').innerHTML =
+          `🌤️ Données météo NASA POWER : GHI ${out.avg_ghi} kWh/m²/jour | DNI ${out.avg_dni} kWh/m²/jour | DHI ${out.avg_dhi} kWh/m²/jour<br>
+          ☀️ Trajectoire solaire : ${solarTrajectory.maxDaylightHours.toFixed(1)}h max (${solarTrajectory.longestDay}) | ${solarTrajectory.minDaylightHours.toFixed(1)}h min (${solarTrajectory.shortestDay}) | Élévation max ${solarTrajectory.maxElevation.toFixed(1)}°`;
+
+        // Calcul d'impact d'ombrage plus physique (analyse horaire sur une journée représentative)
+        const shadeEnabled = document.getElementById('shadeEnabled')?.checked;
+        let shadeHtml = '';
+        if (shadeEnabled) {
+          const shadeDurationUser = Number(document.getElementById('shadeDuration').value) || 0;
+          const shadeAngle = Number(document.getElementById('shadeAngle').value) || 0;
+          const seasonalMode = document.getElementById('seasonalMode')?.checked;
+
+          const latRad = loc.lat * Math.PI / 180;
+          const obliquity = 23.44 * Math.PI / 180;
+
+          let daylightTotal = 0;
+          let blockedTotal = 0;
+          let daysCount = 0;
+
+          if (seasonalMode) {
+            // Échantillonnage : un jour représentatif par mois (15e jour approximatif)
+            const sampleDays = [];
+            for (let m = 0; m < 12; m++) sampleDays.push(Math.round(15 + m * (365 / 12)));
+
+            sampleDays.forEach(dayOfYear => {
+              daysCount += 1;
+              const decl = obliquity * Math.sin(2 * Math.PI * (284 + dayOfYear) / 365.25);
+              for (let hour = 0; hour < 24; hour += 0.5) {
+                const hourAngle = (hour - 12) * 15 * Math.PI / 180;
+                const elevation = Math.asin(
+                  Math.sin(latRad) * Math.sin(decl) + Math.cos(latRad) * Math.cos(decl) * Math.cos(hourAngle)
+                ) * 180 / Math.PI;
+                if (elevation > 0) {
+                  daylightTotal += 0.5;
+                  if (elevation <= shadeAngle) blockedTotal += 0.5;
+                }
+              }
+            });
+          } else {
+            // Journée représentative (équinoxe ~ jour 81)
+            const dayOfYear = 81;
+            daysCount = 1;
+            const decl = obliquity * Math.sin(2 * Math.PI * (284 + dayOfYear) / 365.25);
+            for (let hour = 0; hour < 24; hour += 0.5) {
+              const hourAngle = (hour - 12) * 15 * Math.PI / 180;
+              const elevation = Math.asin(
+                Math.sin(latRad) * Math.sin(decl) + Math.cos(latRad) * Math.cos(decl) * Math.cos(hourAngle)
+              ) * 180 / Math.PI;
+              if (elevation > 0) {
+                daylightTotal += 0.5;
+                if (elevation <= shadeAngle) blockedTotal += 0.5;
+              }
+            }
+          }
+
+          const avgDaylight = daylightTotal / Math.max(1, daysCount);
+          const avgBlockedByAngle = blockedTotal / Math.max(1, daysCount);
+
+          // Conserver la durée saisie par l'utilisateur si elle indique plus d'ombrage (conservatif)
+          const blockedHours = Math.max(avgBlockedByAngle, shadeDurationUser);
+          const shadeFraction = Math.min(1, blockedHours / Math.max(0.1, avgDaylight));
+
+          // Estimer la perte principalement sur la composante directe (DNI)
+          const avgDni = Number(out.avg_dni) || 0;
+          const avgPoa = Number(out.averagePoa) || 1e-6;
+          const dniFractionOfPoa = Math.min(1, avgDni / Math.max(1e-6, avgPoa));
+          const lossFraction = Math.min(1, shadeFraction * dniFractionOfPoa);
+
+          const adjustedProduction = (Number(out.estimatedEnergy) * (1 - lossFraction)).toFixed(2);
+
+          shadeHtml = `\n<li><strong>Ombrage :</strong> Oui — Durée ${blockedHours.toFixed(2)}h/j, Angle ${shadeAngle}°${seasonalMode ? ' (moyenne saisonnière activée)' : ''}</li>` +
+            `\n<li><strong>Perte estimée :</strong> ${(lossFraction * 100).toFixed(1)}%</li>` +
+            `\n<li><strong>Production estimée ajustée :</strong> ${adjustedProduction} kWh/jour</li>`;
+
+          out.adjustedEstimatedEnergy = adjustedProduction;
+          out.shading = { shadeDuration: blockedHours, shadeAngle, shadeFraction, lossFraction, avgDaylight, avgBlockedByAngle, seasonalMode };
+        } else {
+          out.adjustedEstimatedEnergy = out.estimatedEnergy;
+          out.shading = { shadeDuration: 0, shadeAngle: 0, shadeFraction: 0, lossFraction: 0, avgDaylight: 0, avgBlockedByAngle: 0, seasonalMode: false };
+        }
+
+        document.getElementById('computedMetrics').innerHTML = `
+          <li><strong>Modèle de panneau :</strong> ${out.panelName}</li>
+          <li><strong>Puissance panneau :</strong> ${out.panelPower}W</li>
+          <li><strong>Énergie par panneau :</strong> ${out.energyPerPanel} kWh/jour</li>
+          <li><strong>Panneaux solaires nécessaires :</strong> ${out.numPanels}</li>
+          <li><strong>Surface requise :</strong> ${out.totalArea} m²</li>
+          <li><strong>Production estimée :</strong> ${out.estimatedEnergy} kWh/jour</li>
+          ${shadeHtml}
+          <li><strong>Irradiance POA (Plane of Array) :</strong> ${out.averagePoa} kWh/m²/jour</li>
+          ${out.batteryEnabled ? `<li><strong>Autonomie batterie :</strong> ${out.batteryAutonomyDays} jours</li>
+          <li><strong>Capacité unitaire :</strong> ${out.batteryCapacityAh} Ah @ ${out.batteryVoltage} V (${out.battery_unit_capacity} kWh)</li>
+          <li><strong>Profondeur décharge :</strong> ${out.batteryDOD}%</li>
+          <li><strong>Capacité batterie utile nécessaire :</strong> ${out.battery_usable_kwh} kWh</li>
+          <li><strong>Capacité batterie installée :</strong> ${out.battery_kwh_required} kWh</li>
+          <li><strong>Nombre de batteries :</strong> ${out.battery_units_required}</li>` : ''}
+          ${out.note ? `<li class="ok">✅ ${out.note}</li>` : ''}
+        `;
+
+        renderMonthlyChart(tmy.monthly);
+
+        // Afficher le graphique des heures de soleil
+        renderSunlightChart(solarTrajectory.daylightHours);
+
+        // Afficher le graphique de trajectoire solaire
+        renderSolarPathChart(loc.lat);
+
+        document.getElementById('resultCard').style.display = 'block';
+        document.getElementById('methodCard').style.display = 'block';
+        const downloadBtn = document.getElementById('downloadBtn');
+        downloadBtn.style.display = 'inline-block';
+
+        const exportBtn = document.getElementById('exportBtn');
+        exportBtn.style.display = 'inline-block';
+        exportBtn.onclick = () => {
+          const config = {
+            timestamp: new Date().toISOString(),
+            location: {
+              city: city,
+              coordinates: { lat: loc.lat, lon: loc.lon },
+              display_name: loc.display_name
+            },
+            requirements: {
+              daily_energy: energy,
+              available_area: area,
+              panel_model: panelModelId,
+              custom_panel: panelModelId === 'custom' ? {
+                power: selectedPanel.power,
+                area: selectedPanel.area,
+                efficiency: selectedPanel.efficiency
+              } : null,
+              battery: batteryEnabled ? {
+                autonomy_days: batteryAutonomyDays,
+                capacity_ah: batteryCapacityAh,
+                voltage: batteryVoltage,
+                dod: batteryDOD
+              } : null,
+              shading: out.shading && out.shading.shadeFraction > 0 ? {
+                duration_hours: out.shading.shadeDuration,
+                angle_deg: out.shading.shadeAngle,
+                fraction: out.shading.shadeFraction
+              } : null
+            },
+            results: out,
+            solar_trajectory: calculateSolarTrajectory(loc.lat)
+          };
+
+          const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `config-solaire-${city.replace(/[^a-zA-Z0-9]/g, '-')}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        };
+        downloadBtn.onclick = () => {
+          const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Rapport solaire - ${city}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; line-height: 1.6; }
+    h1 { color: #2f6f4e; text-align: center; }
+    .summary { background-color: #f0f8f5; padding: 15px; border-radius: 8px; margin: 20px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background-color: #2f6f4e; color: white; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    .method { background-color: #fff9e6; padding: 15px; border-radius: 8px; margin: 20px 0; }
+    .shading-table { width: 100%; border-collapse: collapse; margin: 18px 0; }
+    .shading-table th, .shading-table td { border: 1px solid #ccc; padding: 10px; }
+    .shading-table th { background-color: #ffebd5; color: #333; }
+    .shading-table tbody tr:nth-child(odd) { background-color: #fff8f2; }
+    .shading-table tbody tr:nth-child(even) { background-color: #fff2e6; }
+  </style>
+</head>
+<body>
+  <h1>☀️ Rapport de dimensionnement solaire</h1>
+  <div class="summary">
+    <h2>Résumé</h2>
+    <p><strong>Ville :</strong> ${city} (${loc.lat.toFixed(5)}°, ${loc.lon.toFixed(5)}°)</p>
+    <p><strong>Objectif énergétique :</strong> ${energy} kWh/jour</p>
+    <p><strong>Surface disponible :</strong> ${area ? area + ' m²' : 'Illimitée'}</p>
+  </div>
+
+  <h2>🌤️ Données météorologiques (NASA POWER)</h2>
+  <table>
+    <tr>
+      <th>Paramètre</th>
+      <th>Valeur</th>
+      <th>Unité</th>
+    </tr>
+    <tr>
+      <td>GHI (Global Horizontal Irradiance)</td>
+      <td>${out.avg_ghi}</td>
+      <td>kWh/m²/jour</td>
+    </tr>
+    <tr>
+      <td>DNI (Direct Normal Irradiance)</td>
+      <td>${out.avg_dni}</td>
+      <td>kWh/m²/jour</td>
+    </tr>
+    <tr>
+      <td>DHI (Diffuse Horizontal Irradiance)</td>
+      <td>${out.avg_dhi}</td>
+      <td>kWh/m²/jour</td>
+    </tr>
+    <tr>
+      <td>POA (Plane of Array)</td>
+      <td>${out.averagePoa}</td>
+      <td>kWh/m²/jour</td>
+    </tr>
+  </table>
+
+  <h2>⚡ Résultats du dimensionnement</h2>
+  <table>
+    <tr>
+      <th>Métrique</th>
+      <th>Valeur</th>
+      <th>Unité</th>
+    </tr>
+    <tr>
+      <td>Modèle de panneau</td>
+      <td>${out.panelName}</td>
+      <td>-</td>
+    </tr>
+    <tr>
+      <td>Puissance panneau</td>
+      <td>${out.panelPower}</td>
+      <td>W</td>
+    </tr>
+    <tr>
+      <td>Énergie par panneau</td>
+      <td>${out.energyPerPanel}</td>
+      <td>kWh/jour</td>
+    </tr>
+    <tr>
+      <td>Panneaux solaires nécessaires</td>
+      <td>${out.numPanels}</td>
+      <td>pcs</td>
+    </tr>
+    <tr>
+      <td>Surface requise</td>
+      <td>${out.totalArea}</td>
+      <td>m²</td>
+    </tr>
+    <tr>
+      <td>Production estimée</td>
+      <td>${out.estimatedEnergy}</td>
+      <td>kWh/jour</td>
+    </tr>
+  </table>
+
+  ${out.batteryEnabled ? `<div class="summary"><h3>🔋 Dimensionnement batterie</h3>
+    <p><strong>Autonomie :</strong> ${out.batteryAutonomyDays} jours</p>
+    <p><strong>Capacité unitaire :</strong> ${out.batteryCapacityAh} Ah @ ${out.batteryVoltage} V (${out.battery_unit_capacity} kWh)</p>
+    <p><strong>Profondeur décharge :</strong> ${out.batteryDOD}%</p>
+    <p><strong>Capacité utile requise :</strong> ${out.battery_usable_kwh} kWh</p>
+    <p><strong>Capacité installée nécessaire :</strong> ${out.battery_kwh_required} kWh</p>
+    <p><strong>Batteries requises :</strong> ${out.battery_units_required}</p>
+  </div>` : ''}
+
+  ${out.shading && out.shading.shadeDuration > 0 ? `<div class="summary"><h3>🔆 Étude d'ombrage</h3>
+    <table class="shading-table">
+      <thead>
+        <tr>
+          <th>Paramètre</th>
+          <th>Valeur</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Mode d'analyse</td>
+          <td>${out.shading.seasonalMode ? 'Essai saisonnier (moyenne mensuelle)' : 'Journée représentative'}</td>
+        </tr>
+        <tr>
+          <td>Durée d'ombrage estimée</td>
+          <td>${out.shading.shadeDuration.toFixed(2)} h/j</td>
+        </tr>
+        <tr>
+          <td>Angle d'ombrage</td>
+          <td>${out.shading.shadeAngle}°</td>
+        </tr>
+        <tr>
+          <td>Heures de jour moyennes</td>
+          <td>${out.shading.avgDaylight ? out.shading.avgDaylight.toFixed(2) : 'N/A'} h/j</td>
+        </tr>
+        <tr>
+          <td>Heures bloquées (angle)</td>
+          <td>${out.shading.avgBlockedByAngle ? out.shading.avgBlockedByAngle.toFixed(2) : 'N/A'} h/j</td>
+        </tr>
+        <tr>
+          <td>Perte estimée</td>
+          <td>${(out.shading.lossFraction * 100).toFixed(1)}%</td>
+        </tr>
+        <tr>
+          <td>Production ajustée</td>
+          <td>${out.adjustedEstimatedEnergy} kWh/jour</td>
+        </tr>
+      </tbody>
+    </table></div>` : ''}
+
+  ${buildMonthlyChartHtml(tmy.monthly)}
+
+  ${out.note ? `<div class="summary"><strong>⚠️ Note :</strong> ${out.note}</div>` : ''}
+
+  <div class="method">
+    <h2>📋 Méthodologie de calcul</h2>
+    <ol>
+      <li>Récupération des données mensuelles d'irradiance (ALLSKY_SFC_SW_DWN) depuis NASA POWER (LARC)</li>
+      <li>Calcul de la moyenne annuelle GHI</li>
+      <li>Estimation DNI ≈ 60% × GHI, DHI ≈ 40% × GHI</li>
+      <li>POA = GHI × 0.9 (prise en compte de l'angle optimal d'inclinaison)</li>
+      <li>Énergie par panneau = POA × rendement (20%)</li>
+      <li>Nombre de panneaux = Objectif énergétique ÷ (Énergie par panneau)</li>
+      <li>Surface totale = Nombre de panneaux × 1.6 m² (taille standard)</li>
+      <li>Si surface dépassée : limitation du nombre de panneaux à la surface disponible</li>
+    </ol>
+  </div>
+
+  <p style="text-align: center; color: #888; margin-top: 40px;">
+    Généré le ${new Date().toLocaleString('fr-FR')} | Données NASA POWER (LARC)
+  </p>
+</body>
+</html>`;
+          const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `solar_report_${city.replace(/\W+/g, '_')}.html`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        };
+
+        status.textContent = '✅ Calcul terminé.';
+        status.className = 'ok';
+      } catch (error) {
+        status.textContent = `❌ Erreur : ${error.message}`;
+        status.className = 'error';
+        document.getElementById('resultCard').style.display = 'none';
+        document.getElementById('methodCard').style.display = 'none';
+        document.getElementById('downloadBtn').style.display = 'none';
+      }
+    };
+
+    document.getElementById('computeBtn').addEventListener('click', performCalculation);
+
+    const hourSlider = document.getElementById('sunHourRange');
+    const hourValue = document.getElementById('sunHourValue');
+    if (hourSlider && hourValue) {
+      hourSlider.addEventListener('input', (event) => {
+        const h = Number(event.target.value);
+        hourValue.textContent = `${h.toFixed(1)}h`;
+        updateSunHourMarkers(h);
+      });
+    }
+
+    // Splash screen to full app transition
+    window.addEventListener('load', () => {
+      const splash = document.getElementById('splashScreen');
+      const app = document.getElementById('appContent');
+      // initMap(); carte retirée dans cette version
+      setTimeout(() => {
+        if (splash) {
+          splash.style.opacity = '0';
+          splash.style.transition = 'opacity 0.5s ease-out';
+          setTimeout(() => { splash.remove(); }, 500);
+        }
+        if (app) app.classList.remove('hidden-app');
+      }, 1700);
+    });
+  </script>
+</body>
+</html>
